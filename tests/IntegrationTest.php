@@ -8,27 +8,29 @@
 
 namespace Hawkbit\Presentation\Tests;
 
-
-use ContainerInteropDoctrine\EntityManagerFactory;
-use Doctrine\ORM\EntityManagerInterface;
 use Hawkbit\Application;
-use Hawkbit\Presentation\Presentation;
+use Hawkbit\Presentation\Adapters\Adapter;
+use Hawkbit\Presentation\Adapters\PlatesAdapter;
 use Hawkbit\Presentation\PresentationService;
-use Hawkbit\Presentation\PresentationServiceInterface;
-use Hawkbit\Presentation\PresentationServiceProvider;
+use Hawkbit\Presentation\Tests\Mocks\AppFactory;
 use Hawkbit\Presentation\Tests\Mocks\InjectableController;
-use League\Plates\Engine;
-use org\bovigo\vfs\vfsStream;
 use Zend\Diactoros\ServerRequestFactory;
 
 class IntegrationTest extends \PHPUnit_Framework_TestCase
 {
+    /** @var  Application */
+    private $app;
+
+    public function testAdapter()
+    {
+        $this->assertInstanceOf(PlatesAdapter::class, $this->app[Adapter::class]);
+    }
 
     public function testIntegration()
     {
-        $app = new Application(require __DIR__ . '/assets/config.php');
-        $app->register(new PresentationServiceProvider($app->getConfig('templates')));
+        $app = $this->app;
 
+        /** @var PresentationService $engine */
         $engine = $app[PresentationService::class];
         $result = $engine->render('index', ['world' => 'World']);
 
@@ -38,9 +40,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
 
     public function testInjectableIntegration()
     {
-        $app = new Application(require __DIR__ . '/assets/config.php');
-        $app->register(new PresentationServiceProvider($app->getConfig('templates')));
-
+        $app = $this->app;
         $app->get('/', [InjectableController::class, 'getIndex']);
 
         $response = $app->handle(ServerRequestFactory::fromGlobals());
@@ -50,8 +50,7 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
 
     public function testExtendEngine()
     {
-        $app = new Application(require __DIR__ . '/assets/config.php');
-        $app->register(new PresentationServiceProvider($app->getConfig('templates')));
+        $app = $this->app;
 
         /** @var PresentationService $service */
         $service = $app[PresentationService::class];
@@ -66,5 +65,11 @@ class IntegrationTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('FOO BAR', $response->getBody()->__toString());
     }
 
+    protected function setUp()
+    {
+        $this->app = AppFactory::create(function ($config){
+            return new PlatesAdapter($config);
+        });
+    }
 
 }

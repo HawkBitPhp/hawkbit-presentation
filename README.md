@@ -6,8 +6,9 @@
 [![Total Downloads][ico-downloads]][link-downloads]
 [![Coverage Status][ico-coveralls]][link-coveralls]
 
-Presentation layer for Hawkbit PSR-7 Micro PHP framework.
-Hawkbit Presentation uses [`league/plates`](http://platesphp.com/) as view engine and wraps it with in a PresentationService
+Ployglott and extensible presentation layer for different presentation engines.
+The presentation layer uses [`league/plates`](http://platesphp.com/) as default engine and could be extended with Twig, 
+Smarty, Liquif, blade and further more.
 
 ## Install
 
@@ -51,6 +52,16 @@ The following versions of PHP are supported by this version.
 * PHP 7.1
 * HHVM
 
+In addition to PHP you also need a valid [PSR-7](https://packagist.org/providers/psr/http-message-implementation)
+and [PSR-11](https://packagist.org/providers/psr/container-implementation) integration.
+
+[Hawkbit Micro Framework](https://github.com/HawkBitPhp/hawkbit) is supported by default.
+
+[Silex](https://silex.sensiolabs.org/), 
+[Lumen](https://lumen.laravel.com/), 
+[zend-expressive](https://docs.zendframework.com/zend-expressive/) 
+and [Slim](https://www.slimframework.com/) support is untested but should work as well.
+
 ## Setup
 
 Setup with an existing application configuration (we refer to [tests/assets/config.php](tests/assets/config.php))
@@ -60,14 +71,22 @@ Setup with an existing application configuration (we refer to [tests/assets/conf
 
 use \Hawkbit\Application;
 use \Hawkbit\Presentation\PresentationService;
-use \Hawkbit\Presentation\PresentationServiceProvider;
+use \Hawkbit\Presentation\Adapters\PlatesAdapter;
+use \Hawkbit\Presentation\Adapters\Adapter;
 
-$app = new Application(require_once __DIR__ . '/config.php');
+$app = new Application(require './config.php');
 
-$app->register(new PresentationServiceProvider([
+// or configure manually
+
+$app = new Application();
+
+$app[Adapter::class] = new PlatesAdapter([
     'default' => __DIR__ . '/path/to/templates',
     'another' => __DIR__ . '/path/to/other/templates',
-]));
+]);
+
+$app[PresentationService::class] = new PresentationService($app->getContainer());
+
 ```
 
 ### Presentation from Hawbit Application
@@ -133,6 +152,123 @@ $service->getEngine()
         return strtoupper($string);
     });
 
+```
+
+### Wrap into PSR 7
+
+Hawkbit presentation provides a PSR-7 Wrapper to capture rendered output into psr 7 response.
+
+
+Please keep in mind to add an additional [PSR-7](https://packagist.org/providers/psr/http-message-implementation)
+ implementation!
+
+You just need to wrap you favorite presentation adapter into psr 7 adapter
+
+```php
+<?php
+
+use \Hawkbit\Application;
+use \Hawkbit\Presentation\PresentationService;
+use \Hawkbit\Presentation\Adapters\PlatesAdapter;
+use \Hawkbit\Presentation\Adapters\Adapter;
+use \Hawkbit\Presentation\Adapters\Psr7WrapperAdapter;
+
+$app = new Application(require './config.php');
+
+// or configure manually
+
+$app = new Application();
+
+$app[Adapter::class] = new Psr7WrapperAdapter(new PlatesAdapter([
+    'default' => __DIR__ . '/path/to/templates',
+    'another' => __DIR__ . '/path/to/other/templates',
+]), 
+$app[\Psr\Http\Message\ServerRequestInterface::class], 
+$app[\Psr\Http\Message\ResponseInterface::class]);
+
+$app[PresentationService::class] = new PresentationService($app->getContainer());
+
+```
+
+The integrations works with examples mentioned above
+
+#### Rendering
+
+Please keep in mind, that the render method is now returning an instance of `\Psr\Http\Message\ResponseInterface` 
+instead of a string!
+
+Your presentation logic e. g. in a controller is now reduced as follows
+
+```php
+<?php
+
+use Hawkbit\Presentation\PresentationService;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
+
+class MyController
+{
+    /**
+     * @var PresentationService
+     */
+    private $presentationService;
+
+    /**
+     * TestInjectableController constructor.
+     * @param PresentationService $presentationService
+     */
+    public function __construct(PresentationService $presentationService)
+    {
+        $this->presentationService = $presentationService;
+    }
+
+    public function getIndex(ServerRequestInterface $request, ResponseInterface $response, array $args = [])
+    {
+        // configured with PSR-7 adapter
+        return $this->presentationService->render('index', ['world' => 'World']);
+    }
+}
+```
+
+#### Add response on render
+
+Response class is attached while rendering by default. But in some cases you need to 
+add your own response class just before rendering. The wrappers render method takes 
+optional response as a third argument.
+
+```php
+<?php
+
+use Hawkbit\Presentation\PresentationService;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
+
+class MyController
+{
+    /**
+     * @var PresentationService
+     */
+    private $presentationService;
+
+    /**
+     * TestInjectableController constructor.
+     * @param PresentationService $presentationService
+     */
+    public function __construct(PresentationService $presentationService)
+    {
+        $this->presentationService = $presentationService;
+    }
+    
+    public function getIndex(ServerRequestInterface $request, ResponseInterface $response, array $args = [])
+    {
+        // manipulate response
+        // for example we need to add an api key
+        $response = $response->withHeader('API-KEY', 123);
+        
+        // configured with PSR-7 adapter
+        return $this->presentationService->render('index', ['world' => 'World'], $response);
+    }
+}
 ```
 
 You are now able to [render a different view](http://platesphp.com/engine/folders/) e.g. `$presentationService->render('acme::index')` 
