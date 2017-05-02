@@ -8,7 +8,7 @@
 
 Ployglott and extensible presentation layer for different presentation engines.
 The presentation layer uses [`league/plates`](http://platesphp.com/) as default engine and could be extended with Twig, 
-Smarty, Liquif, blade and further more.
+Smarty, Liquid, Blade and further more.
 
 ## Install
 

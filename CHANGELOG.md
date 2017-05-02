@@ -15,7 +15,8 @@
 ### Removed
 
  - Remove service provider since their is no standard. Hawbit presentation provides no service provider for each derivate of a service provider
-
+ - PHP 5.5 Support
+ 
 ## 1.1.0
 
 ### Added
